@@ -58,6 +58,16 @@ class VisualizationInput(BaseModel):
     angle: str = "Front"
 
 
+# ─────────────────────────── Moodboard ──────────────────────────
+
+class MoodboardGenerateInput(BaseModel):
+    theme: str = ""
+    mood: str = ""
+    color_story: str = ""
+    count: int = 2
+    image_urls: List[str] = []
+
+
 # ─────────────────────────── Projects ───────────────────────────
 
 class ArtifaxProjectCreate(BaseModel):

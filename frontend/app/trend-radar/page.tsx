@@ -12,6 +12,7 @@ import {
   Sparkles,
   ArrowRight,
   BarChart3,
+  X,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,7 +21,15 @@ import api from "@/lib/api";
 const TABS = ["Trend Radar", "Trend Scout", "Brand Compare"] as const;
 type TabType = (typeof TABS)[number];
 
-const CATEGORIES = ["Womenswear", "Menswear", "Accessories", "Footwear"];
+const CATEGORIES = [
+  "Womenswear",
+  "Menswear",
+  "Ethnicwear",
+  "Kidswear",
+  "Innerwear",
+  "Footwear",
+  "Accessories",
+];
 const SEASONS = ["SS25", "AW25", "SS26", "AW26", "SS27", "AW27"];
 
 interface TrendItem {
@@ -67,13 +76,81 @@ function GrowthIndicator({ growth }: { growth: "up" | "stable" | "down" }) {
   return <Minus className="w-4 h-4 text-amber-400" />;
 }
 
-function TrendCard({ trend, index }: { trend: TrendItem; index: number }) {
+function TrendModal({ trend, onClose }: { trend: TrendItem; onClose: () => void }) {
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          transition={{ duration: 0.2 }}
+          className="card w-full max-w-md overflow-hidden shadow-2xl shadow-black/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="h-2" style={{ backgroundColor: trend.color_hex }} />
+          <div className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1 pr-4">
+                <h3 className="text-lg font-bold t-heading mb-1">{trend.name}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="tag text-[10px]">{trend.category}</span>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-lg bg-surface-2 flex items-center justify-center t-muted hover:t-heading transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 mb-5 p-3 rounded-xl bg-surface-2">
+              <div className="flex items-center gap-2">
+                <GrowthIndicator growth={trend.growth} />
+                <span className="text-xs t-secondary capitalize">{trend.growth}</span>
+              </div>
+              <div className="w-px h-4 bg-white/10" />
+              <div className="flex items-center gap-2">
+                <ScoreBadge score={trend.score} />
+                <span className="text-xs t-secondary">Trend strength</span>
+              </div>
+              {trend.color_hex && (
+                <>
+                  <div className="w-px h-4 bg-white/10" />
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-4 rounded-full border border-white/10"
+                      style={{ backgroundColor: trend.color_hex }}
+                    />
+                    <span className="text-xs t-secondary font-mono">{trend.color_hex}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <p className="text-sm t-secondary leading-relaxed">{trend.description}</p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function TrendCard({ trend, index, onClick }: { trend: TrendItem; index: number; onClick: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="card overflow-hidden group hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300"
+      onClick={onClick}
+      className="card overflow-hidden group hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300 cursor-pointer"
     >
       <div
         className="h-1.5"
@@ -105,6 +182,8 @@ function TrendCard({ trend, index }: { trend: TrendItem; index: number }) {
 export default function TrendRadarPage() {
   const { isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("Trend Radar");
+
+  const [selectedTrend, setSelectedTrend] = useState<TrendItem | null>(null);
 
   // Trend Radar state
   const [category, setCategory] = useState("Womenswear");
@@ -296,7 +375,7 @@ export default function TrendRadarPage() {
                 <>
                   <div className="grid grid-cols-3 gap-4 mb-6">
                     {trends.map((trend, idx) => (
-                      <TrendCard key={trend.id} trend={trend} index={idx} />
+                      <TrendCard key={trend.id} trend={trend} index={idx} onClick={() => setSelectedTrend(trend)} />
                     ))}
                   </div>
                   {summary && (
@@ -360,22 +439,22 @@ export default function TrendRadarPage() {
                       />
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {CATEGORIES.map((cat) => (
-                      <button
-                        key={cat}
-                        onClick={() =>
-                          setScoutCategory(scoutCategory === cat ? "" : cat)
-                        }
-                        className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
-                          scoutCategory === cat
-                            ? "bg-gradient-to-r from-purple-600 to-pink-500 text-white"
-                            : "bg-surface-2 t-secondary border b-subtle hover:bg-wash"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                  <div className="w-44 flex-shrink-0">
+                    <label className="text-xs font-medium t-secondary mb-1.5 block">
+                      Category
+                    </label>
+                    <select
+                      value={scoutCategory}
+                      onChange={(e) => setScoutCategory(e.target.value)}
+                      className="input-base w-full rounded-lg text-sm py-2.5 px-3"
+                    >
+                      <option value="">All Categories</option>
+                      {CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <button
                     onClick={handleScout}
@@ -406,7 +485,8 @@ export default function TrendRadarPage() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="card p-4 flex items-center gap-4 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300"
+                      onClick={() => setSelectedTrend(trend)}
+                      className="card p-4 flex items-center gap-4 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300 cursor-pointer"
                     >
                       <div
                         className="w-2 h-12 rounded-full flex-shrink-0"
@@ -593,6 +673,10 @@ export default function TrendRadarPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {selectedTrend && (
+        <TrendModal trend={selectedTrend} onClose={() => setSelectedTrend(null)} />
+      )}
     </div>
   );
 }

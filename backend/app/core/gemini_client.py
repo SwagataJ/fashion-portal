@@ -3,6 +3,9 @@ Shared Gemini client for all text AI tasks.
 Uses google-genai with Vertex AI backend.
 """
 
+import re
+import json
+
 from google import genai
 from google.genai import types
 from app.core.config import settings
@@ -62,6 +65,42 @@ def gemini_json(prompt: str, system_instruction: str = None, temperature: float 
         config=config,
     )
     return response.text
+
+
+def gemini_grounded_json(prompt: str, system_instruction: str = None, temperature: float = 0.5) -> str:
+    """Send a prompt to Gemini with Google Search grounding enabled.
+
+    Google Search grounding is incompatible with response_mime_type=application/json,
+    so we request plain text and extract the JSON block from the response.
+    Returns the raw JSON string (caller parses).
+    """
+    client = get_gemini_client()
+
+    config = types.GenerateContentConfig(
+        temperature=temperature,
+        response_modalities=["TEXT"],
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+    )
+    if system_instruction:
+        config.system_instruction = system_instruction
+
+    response = client.models.generate_content(
+        model=settings.GEMINI_TEXT_MODEL,
+        contents=prompt,
+        config=config,
+    )
+
+    text = response.text or ""
+
+    # Extract the first JSON object or array from the response
+    match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", text)
+    if match:
+        return match.group(0)
+
+    # Fallback: strip markdown code fences if present
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip())
+    text = re.sub(r"\s*```$", "", text.strip())
+    return text
 
 
 def gemini_vision(prompt: str, image_bytes: bytes, mime_type: str = "image/jpeg", temperature: float = 0.7) -> str:

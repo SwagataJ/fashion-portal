@@ -26,9 +26,9 @@ Fashion teams operate in silos:
 | Metric | Value |
 |--------|-------|
 | AI Modules | 9 |
-| API Endpoints | 70+ |
+| API Endpoints | 75+ |
 | Frontend Pages | 12 |
-| Backend Services | 14 |
+| Backend Services | 15 |
 | Time Saved (avg) | 95%+ per task |
 | Avg Task Time | < 2 minutes |
 
@@ -44,7 +44,8 @@ The end-to-end design workspace that takes a brief and produces presentation-rea
 | Panel | What It Does |
 |-------|-------------|
 | **Research** | AI scans seasonal trends, runway data, regional signals, and competitor positioning in 30 seconds. Returns structured insights with actionable direction. |
-| **Moodboard Canvas** | Drag-and-drop visual collage builder. Upload inspiration images, group by theme. Replaces Pinterest + Figma + folder chaos. |
+| **Moodboard Canvas** | Drag-and-drop visual collage builder. Upload inspiration images, place them on a Konva canvas, add text overlays. Replaces Pinterest + Figma + folder chaos. |
+| **Moodboard AI** | Generate atmospheric editorial imagery directly from the canvas. The AI reads the images already on your board — matching colour palette, mood, and texture — and generates 2 new coherent images (wide editorial + macro detail). Theme, mood, and colour story are optional overrides. |
 | **Color Studio** | Generate AI palettes from season/mood, or extract colors directly from uploaded images. Returns hex codes and Pantone-ready values. |
 | **Concept Visualisation** | Generates 2 distinct AI concept variations from a single brief. High-fidelity renders ready for internal presentations. Powered by Gemini + Vertex AI. |
 
@@ -53,17 +54,29 @@ The end-to-end design workspace that takes a brief and produces presentation-rea
 ### 2. Trend Radar — Fashion Intelligence Engine
 **For:** Buyers, Designers, Merchandisers, Brand Strategists
 
-Four analysis modes to stay ahead of the market:
+Four analysis modes grounded in **live Google Trends data** (90-day rolling window) + **Gemini Google Search grounding** for real-time web intelligence:
 
 | Mode | Description |
 |------|-------------|
-| **Trend Radar** | Seasonal & market trend analysis. Returns 8–12 trends per scan with scores (0–100), growth trajectory (rising/stable/declining), descriptions, and color hex codes. |
-| **Trend Scout** | Free-text search across trend categories and geographies. Surfaces niche and emerging micro-trends. |
+| **Trend Radar** | Seasonal & market trend analysis. Returns 8–12 trends per scan with scores (0–100), growth trajectory (rising/stable/declining), descriptions, and color hex codes. Scores are calibrated against real Google Search interest data. |
+| **Trend Scout** | Free-text search across trend categories and geographies. Surfaces niche and emerging micro-trends. Filters breakout/rising queries from live search data. |
 | **Brand Compare** | Side-by-side competitive analysis — positioning, strengths, gaps, and white-space opportunities across price segments. |
 | **Top Trends** | Global trend snapshot across all categories. Perfect for weekly team alignment meetings. |
 
+**Categories supported:** Womenswear · Menswear · Ethnicwear · Kidswear · Innerwear · Footwear · Accessories
+
+**Markets supported:** Global · India · US · UK · France · Italy · Japan · China · Australia
+
+**Data pipeline:**
+1. Google Trends (pytrends) fetches 90-day interest scores, rising queries, and breakout terms for the category + market
+2. Gemini receives this as structured context alongside the prompt
+3. Gemini Google Search grounding adds real-time web intelligence from fashion media, runway coverage, and retail signals
+4. Output trend scores reflect actual consumer search momentum — not just training data
+
+**UX:** Click any trend card to see the full description, colour swatch, and hex code in a modal.
+
 - Covers seasons SS25 through AW27
-- Full scan completes in 30 seconds
+- Full scan completes in under 60 seconds
 - Growth indicators: rising / stable / declining
 
 ---
@@ -288,6 +301,7 @@ Fashion AI Platform
 | passlib + bcrypt | Password hashing |
 | google-genai | Google Gemini AI SDK |
 | google-auth | GCP service account authentication |
+| pytrends | Google Trends data (real-time search interest) |
 | Pillow | Image processing |
 
 ### AI & Cloud
@@ -295,7 +309,9 @@ Fashion AI Platform
 | Service | Usage |
 |---------|-------|
 | Google Gemini 2.0 Flash | All text/JSON/vision tasks |
+| Gemini Google Search Grounding | Real-time web search for Trend Radar |
 | Vertex AI (Gemini image model) | All image generation tasks |
+| Google Trends (pytrends) | 90-day search interest data for trend scoring |
 | GCP Service Account | Authentication for AI API access |
 
 ---
@@ -422,6 +438,7 @@ fashion-portal/
 │   │       ├── concept_lock_service.py
 │   │       ├── ai_validation_service.py
 │   │       ├── vm_guideline_service.py
+│   │       ├── google_trends_service.py
 │   │       └── nano_banana_service.py
 │   ├── credentials/                    # GCP credentials (not committed)
 │   ├── uploads/                        # User-uploaded files (not committed)
@@ -480,6 +497,7 @@ fashion-portal/
 | POST | `/api/artifax/concept/generate` | Generate concept images |
 | POST | `/api/artifax/concept/color` | Generate color palette |
 | POST | `/api/artifax/concept/extract-colors` | Extract colors from image |
+| POST | `/api/artifax/moodboard/generate` | Generate moodboard imagery from canvas images |
 | POST | `/api/artifax/visualization/generate` | Product visualization |
 
 ### VM Tower (40+ endpoints)

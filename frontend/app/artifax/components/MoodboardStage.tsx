@@ -17,7 +17,7 @@ function CanvasImageNode({
   onSelect: (id: string) => void;
   onChange: (item: CanvasItem) => void;
 }) {
-  const [image] = useImage(item.url!, "anonymous");
+  const [image] = useImage(item.url!);
   const imgRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
 

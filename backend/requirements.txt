@@ -13,3 +13,4 @@ pillow>=10.3.0
 aiofiles>=23.2.1
 google-auth>=2.20
 google-genai>=1.0
+pytrends>=4.9.2

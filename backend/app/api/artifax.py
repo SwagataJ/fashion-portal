@@ -15,6 +15,7 @@ from app.schemas.artifax import (
     RunwayInput,
     ConceptGenerateInput,
     ColorGenerateInput,
+    MoodboardGenerateInput,
     VisualizationInput,
     ArtifaxProjectCreate,
     ArtifaxProjectUpdate,
@@ -26,6 +27,7 @@ from app.services.artifax_research_service import (
 )
 from app.services.artifax_concept_service import (
     generate_concept_images,
+    generate_moodboard_images,
     generate_color_palette,
     extract_colors_from_image,
 )
@@ -241,6 +243,24 @@ async def extract_colors(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Color extraction failed: {str(e)}"
+        )
+
+
+# ─────────────────────────── Moodboard ──────────────────────────────────────
+
+@router.post("/moodboard/generate")
+async def generate_moodboard(
+    data: MoodboardGenerateInput,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        images = await generate_moodboard_images(
+            data.theme, data.mood, data.color_story, data.count, data.image_urls
+        )
+        return {"images": images}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Moodboard generation failed: {str(e)}"
         )
 
 

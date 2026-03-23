@@ -66,6 +66,121 @@ async def generate_concept_images(
     return images
 
 
+def _url_to_local_path(url: str) -> Path | None:
+    """Convert a localhost:8000 image URL to its local file path."""
+    if "/generated/" in url:
+        filename = url.split("/generated/")[-1]
+        return Path(settings.GENERATED_DIR) / filename
+    if "/uploads/" in url:
+        rest = url.split("/uploads/")[-1]
+        return Path(settings.UPLOAD_DIR) / rest
+    return None
+
+
+def _load_image_part(url: str) -> types.Part | None:
+    """Load an image from a local path and return a Gemini Part."""
+    path = _url_to_local_path(url)
+    if path and path.exists():
+        ext = path.suffix.lower()
+        mime = "image/jpeg" if ext in {".jpg", ".jpeg"} else "image/png"
+        data = path.read_bytes()
+        return types.Part.from_bytes(data=data, mime_type=mime)
+    return None
+
+
+async def generate_moodboard_images(
+    theme: str,
+    mood: str,
+    color_story: str,
+    count: int = 2,
+    image_urls: list | None = None,
+) -> list:
+    """Generate atmospheric moodboard images using Vertex AI Gemini.
+
+    Canvas images are sent as the primary visual input so the model produces
+    new images that are coherent with the existing board's aesthetic.
+    """
+
+    # Load reference image Parts from canvas
+    reference_parts: list[types.Part] = []
+    if image_urls:
+        for url in image_urls[:4]:
+            part = _load_image_part(url)
+            if part:
+                reference_parts.append(part)
+
+    has_references = len(reference_parts) > 0
+
+    if has_references:
+        text_prompt = (
+            "You are a fashion creative director. "
+            "The images provided are the current state of a fashion moodboard. "
+            "Generate a NEW atmospheric editorial image that is visually coherent with them — "
+            "matching their colour palette, mood, texture, and overall aesthetic direction. "
+            "Do NOT reproduce any of the provided images. Create something complementary. "
+        )
+    else:
+        text_prompt = "Fashion editorial moodboard image, atmospheric and evocative. "
+
+    if theme:
+        text_prompt += f"Theme: {theme}. "
+    if mood:
+        text_prompt += f"Mood: {mood}. "
+    if color_story:
+        text_prompt += f"Color story: {color_story}. "
+
+    text_prompt += (
+        "Style: Cinematic, high-art editorial photography. "
+        "Could be rich fabric textures, abstract colour washes, lifestyle scene, "
+        "editorial still life, architectural detail, or natural landscape. "
+        "No logos, text, watermarks, or garment flat-lays. "
+        "Magazine-quality composition."
+    )
+
+    variations = [
+        "Wide editorial establishing shot, painterly and atmospheric.",
+        "Close macro detail emphasising texture, material, or abstract colour story.",
+    ]
+
+    images = []
+    actual_count = min(count, 2)
+    client = get_gemini_client()
+
+    for i in range(actual_count):
+        variation = variations[i] if i < len(variations) else ""
+        full_text = text_prompt + f" Treatment: {variation}"
+
+        # All contents must be types.Part objects
+        contents: list[types.Part] = [
+            *reference_parts,
+            types.Part.from_text(text=full_text),
+        ]
+
+        try:
+            response = client.models.generate_content(
+                model=settings.GENAI_MODEL_ID,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                ),
+            )
+
+            for part in response.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.mime_type.startswith("image/"):
+                    ext = part.inline_data.mime_type.split("/")[-1]
+                    filename = f"moodboard_{uuid.uuid4()}.{ext}"
+                    generated_dir = Path(settings.GENERATED_DIR)
+                    generated_dir.mkdir(exist_ok=True)
+
+                    (generated_dir / filename).write_bytes(part.inline_data.data)
+                    images.append(f"http://localhost:8000/generated/{filename}")
+                    break
+        except Exception as e:
+            print(f"Moodboard image generation failed: {e}")
+
+    return images
+
+
 async def generate_color_palette(
     concept: str, mood: str, season: str, count: int = 5
 ) -> dict:

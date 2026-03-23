@@ -1,10 +1,11 @@
 import json
 import logging
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.gemini_client import gemini_json
+from app.core.gemini_client import gemini_grounded_json
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.trend_radar import (
@@ -13,16 +14,25 @@ from app.schemas.trend_radar import (
     BrandCompareInput,
     TrendRadarOutput,
 )
+from app.services.google_trends_service import build_trends_context
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["trend-radar"])
 
-_TREND_SYSTEM = (
-    "You are an expert fashion trend analyst with deep knowledge of global fashion markets, "
-    "runway shows, street style, social media trends, and retail data. "
-    "Always return valid JSON matching the requested schema exactly."
-)
+
+def _trend_system() -> str:
+    today = date.today()
+    return (
+        f"Today's date is {today.strftime('%B %d, %Y')}. "
+        "The current active fashion season is SS26 (Spring/Summer 2026). "
+        "AW25 (Autumn/Winter 2025) is also in market. SS25 and earlier are past seasons. "
+        "When the user refers to 'current', 'now', or 'latest' trends, always ground your response "
+        "in SS26 and AW25 — never reference SS24 or earlier as current. "
+        "You are an expert fashion trend analyst with deep knowledge of global fashion markets, "
+        "runway shows, street style, social media trends, and retail data. "
+        "Always return valid JSON matching the requested schema exactly."
+    )
 
 
 @router.post("/analyze", response_model=TrendRadarOutput)
@@ -30,9 +40,12 @@ def analyze_trends(
     body: TrendAnalyzeInput,
     current_user: User = Depends(get_current_user),
 ):
+    gt_context = build_trends_context(body.category, body.market)
     prompt = (
+        f"{gt_context}"
         f"Analyze current fashion trends for {body.category} in the {body.season} season "
-        f"for the {body.market} market.\n\n"
+        f"for the {body.market} market. "
+        f"Use the Google Trends data above to calibrate trend scores and identify rising momentum.\n\n"
         f"Return a JSON object with:\n"
         f'- "trends": array of 8-12 trend objects, each with:\n'
         f'  - "name": trend name\n'
@@ -46,7 +59,7 @@ def analyze_trends(
     )
 
     try:
-        raw = gemini_json(prompt, system_instruction=_TREND_SYSTEM)
+        raw = gemini_grounded_json(prompt, system_instruction=_trend_system())
         data = json.loads(raw)
         return TrendRadarOutput(**data)
     except json.JSONDecodeError as e:
@@ -64,9 +77,12 @@ def scout_trends(
 ):
     category_filter = f" in the {body.category} category" if body.category else ""
     market_filter = f" for the {body.market} market" if body.market else ""
+    gt_context = build_trends_context(body.category or body.query, body.market or "global")
 
     prompt = (
-        f'Discover fashion trends matching this query: "{body.query}"{category_filter}{market_filter}.\n\n'
+        f"{gt_context}"
+        f'Discover fashion trends matching this query: "{body.query}"{category_filter}{market_filter}. '
+        f"Use the Google Trends data above to identify which of these trends have real search momentum.\n\n"
         f"Return a JSON object with:\n"
         f'- "trends": array of 5-8 matching trend objects with name, category, score, growth, description, color_hex\n'
         f'- "summary": brief summary of findings\n'
@@ -74,7 +90,7 @@ def scout_trends(
     )
 
     try:
-        raw = gemini_json(prompt, system_instruction=_TREND_SYSTEM)
+        raw = gemini_grounded_json(prompt, system_instruction=_trend_system())
         data = json.loads(raw)
         return data
     except json.JSONDecodeError as e:
@@ -107,7 +123,7 @@ def compare_brands(
     )
 
     try:
-        raw = gemini_json(prompt, system_instruction=_TREND_SYSTEM)
+        raw = gemini_grounded_json(prompt, system_instruction=_trend_system())
         data = json.loads(raw)
         return data
     except json.JSONDecodeError as e:
@@ -120,8 +136,11 @@ def compare_brands(
 
 @router.get("/top")
 def get_top_trends(current_user: User = Depends(get_current_user)):
+    gt_context = build_trends_context("fashion", "global")
     prompt = (
-        "Return the top 5 most impactful fashion trends right now across all categories.\n\n"
+        f"{gt_context}"
+        "Return the top 5 most impactful fashion trends right now across all categories. "
+        "Use the Google Trends data above to ensure scores reflect actual consumer search momentum.\n\n"
         "Return a JSON object with:\n"
         '- "trends": array of 5 trend objects with name, category, score, growth, description, color_hex\n'
         '- "summary": brief 1-sentence summary\n'
@@ -129,7 +148,7 @@ def get_top_trends(current_user: User = Depends(get_current_user)):
     )
 
     try:
-        raw = gemini_json(prompt, system_instruction=_TREND_SYSTEM)
+        raw = gemini_grounded_json(prompt, system_instruction=_trend_system())
         data = json.loads(raw)
         return data
     except json.JSONDecodeError as e:
