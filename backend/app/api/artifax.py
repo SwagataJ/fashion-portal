@@ -264,6 +264,38 @@ async def generate_moodboard(
         )
 
 
+# ─────────────────────────── CAD Flatlay ────────────────────────────────────
+
+@router.post("/cad-flatlay/generate")
+async def generate_cad_flatlay(
+    front_image: Optional[UploadFile] = File(None),
+    back_image: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate front and back CAD technical flatlay images from uploaded garment image(s).
+    At least one of front_image or back_image must be provided.
+    Missing views are imagined by AI from the provided reference.
+    """
+    from app.services.artifax_cad_service import generate_cad_flatlays
+
+    if not front_image and not back_image:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one image (front_image or back_image).",
+        )
+
+    front_bytes = await front_image.read() if front_image else None
+    front_filename = front_image.filename if front_image else None
+    back_bytes = await back_image.read() if back_image else None
+    back_filename = back_image.filename if back_image else None
+
+    try:
+        result = generate_cad_flatlays(front_bytes, front_filename, back_bytes, back_filename)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"CAD flatlay generation failed: {str(e)}")
+
+
 # ─────────────────────────── Visualization ──────────────────────────────────
 
 @router.post("/visualization/generate")

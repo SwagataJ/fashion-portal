@@ -7,6 +7,7 @@ import {
   FlaskConical,
   Layout,
   Camera,
+  Layers,
   Plus,
   ChevronDown,
   Sparkles,
@@ -24,6 +25,9 @@ const MoodboardCanvas = dynamic(() => import("./components/MoodboardCanvas"), {
   ssr: false,
 });
 const PhotoStudio = dynamic(() => import("./components/PhotoStudio"), {
+  loading: () => <PanelSkeleton />,
+});
+const CADFlatlay = dynamic(() => import("./components/CADFlatlay"), {
   loading: () => <PanelSkeleton />,
 });
 
@@ -64,6 +68,13 @@ const SECTIONS: {
     icon: Camera,
     accent: "#fb923c",
     description: "AI product visualization",
+  },
+  {
+    id: "cad-flatlay",
+    label: "CAD Flatlay",
+    icon: Layers,
+    accent: "#34d399",
+    description: "Technical front & back flatlay generation",
   },
 ];
 
@@ -222,6 +233,7 @@ export default function ArtifaxPage() {
               {activeSection === "research" && <ResearchPanel />}
               {activeSection === "moodboard" && <MoodboardCanvas />}
               {activeSection === "photo-studio" && <PhotoStudio />}
+              {activeSection === "cad-flatlay" && <CADFlatlay />}
             </motion.div>
           </AnimatePresence>
         </div>
