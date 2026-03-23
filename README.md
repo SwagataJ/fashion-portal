@@ -47,6 +47,7 @@ The end-to-end design workspace that takes a brief and produces presentation-rea
 | **Moodboard Canvas** | Drag-and-drop visual collage builder. Upload inspiration images, place them on a Konva canvas, add text overlays. Replaces Pinterest + Figma + folder chaos. |
 | **Moodboard AI** | Generate atmospheric editorial imagery directly from the canvas. The AI reads the images already on your board — matching colour palette, mood, and texture — and generates 2 new coherent images (wide editorial + macro detail). Theme, mood, and colour story are optional overrides. |
 | **Concept Visualisation** | Generates 2 distinct AI concept variations from a single brief. High-fidelity renders ready for internal presentations. Powered by Gemini + Vertex AI. |
+| **CAD Flatlay** | Upload a front image, back image, or both — AI generates clean black ink line-drawing CAD specs for both views in tech pack style. If only one view is provided, the missing view is imagined from the supplied image. All construction details are drawn as precise lines: seams, topstitching, buttons, zips, pockets, darts, hems, and trims. |
 
 ---
 
@@ -558,6 +559,7 @@ fashion-portal/
 | POST | `/api/artifax/concept/generate` | Generate concept images |
 | POST | `/api/artifax/moodboard/generate` | Generate moodboard imagery from canvas images |
 | POST | `/api/artifax/visualization/generate` | Product visualization |
+| POST | `/api/artifax/cad-flatlay/generate` | Generate front & back CAD line-drawing flatlays |
 
 ### VM Tower (40+ endpoints)
 | Method | Endpoint | Description |
