@@ -1,11 +1,33 @@
 import json
-from app.core.gemini_client import gemini_json
+from datetime import date
+
+from app.core.gemini_client import gemini_grounded_json
+from app.services.google_trends_service import build_trends_context
+
+
+def _system() -> str:
+    today = date.today()
+    return (
+        f"Today's date is {today.strftime('%B %d, %Y')}. "
+        "Season context: SS26 (Spring/Summer 2026) is the current in-market season. "
+        "AW25 (Autumn/Winter 2025) is also currently in retail. "
+        "AW26 (Autumn/Winter 2026) is the next upcoming season — designers are showing and buyers are planning for it now. "
+        "SS25 and earlier are past seasons. "
+        "When a query references AW26, treat it as forward-looking planning intelligence. "
+        "Always ground your response in current real-world data — never fabricate brand names, "
+        "designer collections, or trend information. "
+        "Return valid JSON only."
+    )
 
 
 async def generate_trend_analysis(
     category: str, season: str, region: str, style_keywords: str
 ) -> dict:
-    prompt = f"""You are a senior fashion trend analyst at a global trend forecasting agency.
+    gt_context = build_trends_context(category, region)
+
+    prompt = f"""{gt_context}
+You are a senior fashion trend analyst at a global trend forecasting agency.
+Use the Google Trends data above alongside live web sources to ground your analysis in real consumer signals.
 
 Analyze current fashion trends for:
 - Category: {category}
@@ -41,16 +63,16 @@ Return a valid JSON object:
 
 IMPORTANT: trend_summary and market_insight must be plain strings, NOT nested objects."""
 
-    raw = gemini_json(
-        prompt=prompt,
-        system_instruction="You are a professional fashion trend analyst at a top forecasting agency. Always return valid JSON only.",
-        temperature=0.7,
-    )
+    raw = gemini_grounded_json(prompt=prompt, system_instruction=_system(), temperature=0.7)
     return json.loads(raw)
 
 
 async def generate_competitor_analysis(brand_name: str, category: str) -> dict:
-    prompt = f"""You are a fashion industry competitive intelligence analyst.
+    gt_context = build_trends_context(category, "global")
+
+    prompt = f"""{gt_context}
+You are a fashion industry competitive intelligence analyst.
+Use live web sources and the Google Trends data above to provide accurate, current intelligence.
 
 Conduct a thorough competitive analysis:
 - Brand: {brand_name}
@@ -84,16 +106,18 @@ Return valid JSON:
 
 IMPORTANT: pricing_range and market_position must be plain strings, NOT nested objects."""
 
-    raw = gemini_json(
-        prompt=prompt,
-        system_instruction="You are a fashion market researcher. Return valid JSON only.",
-        temperature=0.7,
-    )
+    raw = gemini_grounded_json(prompt=prompt, system_instruction=_system(), temperature=0.7)
     return json.loads(raw)
 
 
 async def generate_runway_analysis(season: str, region: str) -> dict:
-    prompt = f"""You are a fashion journalist and runway analyst covering the global fashion weeks.
+    gt_context = build_trends_context("fashion", region)
+
+    prompt = f"""{gt_context}
+You are a fashion journalist and runway analyst covering the global fashion weeks.
+Search the web for actual {season} runway coverage from {region} — designer show reports,
+Vogue, WWD, Business of Fashion, and fashion week recaps.
+Use the Google Trends data above to identify which runway directions are gaining real consumer traction.
 
 Analyze the {season} runway shows from {region}.
 
@@ -130,9 +154,5 @@ Return valid JSON:
   ]
 }}"""
 
-    raw = gemini_json(
-        prompt=prompt,
-        system_instruction="You are a fashion runway analyst. Return valid JSON only.",
-        temperature=0.7,
-    )
+    raw = gemini_grounded_json(prompt=prompt, system_instruction=_system(), temperature=0.7)
     return json.loads(raw)

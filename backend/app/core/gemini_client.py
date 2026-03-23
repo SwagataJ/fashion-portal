@@ -67,6 +67,26 @@ def gemini_json(prompt: str, system_instruction: str = None, temperature: float 
     return response.text
 
 
+def gemini_grounded_text(prompt: str, system_instruction: str = None, temperature: float = 0.7) -> str:
+    """Send a prompt to Gemini with Google Search grounding. Returns plain text response."""
+    client = get_gemini_client()
+
+    config = types.GenerateContentConfig(
+        temperature=temperature,
+        response_modalities=["TEXT"],
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+    )
+    if system_instruction:
+        config.system_instruction = system_instruction
+
+    response = client.models.generate_content(
+        model=settings.GEMINI_TEXT_MODEL,
+        contents=prompt,
+        config=config,
+    )
+    return response.text or ""
+
+
 def gemini_grounded_json(prompt: str, system_instruction: str = None, temperature: float = 0.5) -> str:
     """Send a prompt to Gemini with Google Search grounding enabled.
 

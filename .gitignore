@@ -15,7 +15,7 @@ env/
 # Environment & secrets
 .env
 .env.*
-backend/credentials/
+backend/credentials/*.json
 *.json.bak
 
 # Database

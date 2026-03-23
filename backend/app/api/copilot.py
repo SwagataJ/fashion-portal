@@ -3,7 +3,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.gemini_client import gemini_text
+from app.core.gemini_client import gemini_grounded_text
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.copilot import CopilotChatInput, CopilotChatOutput
@@ -15,10 +15,13 @@ router = APIRouter(tags=["copilot"])
 def _build_system_instruction() -> str:
     today = date.today()
     return (
-        f"Today's date is {today.strftime('%B %d, %Y')}. The current active fashion season is SS26 "
-        f"(Spring/Summer 2026). When the user refers to 'current', 'upcoming', or any season without "
-        f"specifying a year, assume they mean SS26 unless stated otherwise. Do not reference SS24 or "
-        f"SS25 as current — those are past seasons.\n\n"
+        f"Today's date is {today.strftime('%B %d, %Y')}. "
+        f"Season context: SS26 (Spring/Summer 2026) is the current in-market season. "
+        f"AW25 (Autumn/Winter 2025) is also currently in retail. "
+        f"AW26 (Autumn/Winter 2026) is the next upcoming season — designers are showing and buyers are actively planning for it. "
+        f"When the user refers to 'current' or 'now', default to SS26. "
+        f"When the user refers to 'upcoming' or 'next season', default to AW26. "
+        f"SS25 and earlier are past seasons — do not reference them as current.\n\n"
         "You are a premium fashion AI copilot. You help creative directors, "
         "merchandisers, and designers with visual direction, trend insights, "
         "styling advice, campaign ideation, and design feedback. Be concise, "
@@ -46,7 +49,7 @@ def chat(
     prompt = "\n".join(conversation_parts)
 
     try:
-        raw = gemini_text(prompt, system_instruction=_build_system_instruction())
+        raw = gemini_grounded_text(prompt, system_instruction=_build_system_instruction())
 
         # Parse suggestions from the response
         response_text = raw

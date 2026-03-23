@@ -75,7 +75,7 @@ Four analysis modes grounded in **live Google Trends data** (90-day rolling wind
 
 **UX:** Click any trend card to see the full description, colour swatch, and hex code in a modal.
 
-- Covers seasons SS25 through AW27
+- Season grounding: SS26 (current) · AW25 (in retail) · AW26 (upcoming/planning) · SS25 and earlier treated as past
 - Full scan completes in under 60 seconds
 - Growth indicators: rising / stable / declining
 
@@ -227,7 +227,8 @@ An always-on creative director, trend analyst, copywriter, and VM advisor in one
 - Design feedback and critique
 
 **Smart features:**
-- Season-aware (always knows the current active season — SS26 as of 2026)
+- **Google Search grounding** — every response pulls live web data before answering
+- Season-aware (SS26 in-market · AW25 in retail · AW26 upcoming/planning)
 - Markdown-formatted responses rendered in the UI
 - 3 auto-suggested follow-up prompts per response
 - Full conversation history maintained
@@ -265,10 +266,20 @@ Fashion AI Platform
     │   ├── JSON generation (structured outputs)
     │   └── Vision analysis (product/range image understanding)
     │
+    ├── Google Search Grounding (Gemini)
+    │   ├── AI Copilot — every chat message grounded in live web
+    │   ├── Trend Radar — all four endpoints
+    │   └── Artifax Research — trend, competitor, runway analysis
+    │
+    ├── Google Trends (pytrends)
+    │   ├── 90-day rolling search interest per category + market
+    │   ├── Rising / breakout query detection
+    │   └── Injected as context into Trend Radar + Artifax Research
+    │
     └── Vertex AI — Image Generation
         └── Gemini image model (multimodal generation)
             Used for: product photos, campaign visuals,
-            AI models, scene backdrops, VM mockups
+            AI models, scene backdrops, VM mockups, moodboard imagery
 ```
 
 ---
@@ -351,6 +362,8 @@ Place your GCP service account JSON at:
 ```
 backend/credentials/service-account.json
 ```
+
+> The `credentials/` folder is tracked in git (so the path exists on clone) but `*.json` files inside it are gitignored — your service account key is never committed.
 
 Optionally create `backend/.env` to override defaults:
 ```env
