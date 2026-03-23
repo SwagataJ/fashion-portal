@@ -155,7 +155,11 @@ export default function VMBuilderCanvas() {
   const handleGenerateMockup = async (layoutId: number) => {
     setGeneratingMockup(layoutId);
     try {
-      const res = await api.post("/api/vm-tower/mockup/generate", { layout_id: layoutId });
+      const payload: Record<string, unknown> = { layout_id: layoutId };
+      if (selectedProducts.length > 0) {
+        payload.garment_product_ids = selectedProducts;
+      }
+      const res = await api.post("/api/vm-tower/mockup/generate", payload);
       updateLayout(res.data);
     } catch (err) {
       console.error(err);
@@ -329,7 +333,13 @@ export default function VMBuilderCanvas() {
                           {generatingMockup === layout.id ? (
                             <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating Mockup...</>
                           ) : (
-                            <><Sparkles className="w-3.5 h-3.5" /> Generate Mockup</>
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Generate Mockup
+                              {selectedProducts.length > 0 && (
+                                <span className="ml-1 text-[9px] opacity-60">({selectedProducts.length} products)</span>
+                              )}
+                            </>
                           )}
                         </button>
                       </motion.div>

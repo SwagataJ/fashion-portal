@@ -13,6 +13,7 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  ImageIcon,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useVMTowerStore } from "@/store/vmTowerStore";
@@ -61,9 +62,12 @@ export default function VMOutputPanel() {
     guidelines,
     setGuidelines,
     intents,
+    layouts,
     updateIntent,
     setActivePanel,
   } = useVMTowerStore();
+
+  const mockupLayouts = layouts.filter((l) => l.mockup_image_url);
 
   const [loading, setLoading] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(
@@ -231,6 +235,54 @@ export default function VMOutputPanel() {
           </button>
         </div>
       </div>
+
+      {/* Mockup Gallery */}
+      {mockupLayouts.length > 0 && (
+        <div className="card p-5">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
+            <ImageIcon className="w-4 h-4 text-pink-400" />
+            Generated Mockups
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/15 text-pink-400 border border-pink-500/20 ml-1">
+              {mockupLayouts.length}
+            </span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mockupLayouts.map((layout) => (
+              <div key={layout.id} className="space-y-2">
+                <img
+                  src={
+                    layout.mockup_image_url!.startsWith("http")
+                      ? layout.mockup_image_url!
+                      : `http://localhost:8000${layout.mockup_image_url}`
+                  }
+                  alt={layout.name}
+                  className="w-full rounded-xl border border-[var(--border-color)] object-cover"
+                />
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <p className="text-xs font-medium t-primary">{layout.name}</p>
+                    <p className="text-[10px] t-muted capitalize">{layout.layout_type.replace("_", " ")}</p>
+                  </div>
+                  <a
+                    href={
+                      layout.mockup_image_url!.startsWith("http")
+                        ? layout.mockup_image_url!
+                        : `http://localhost:8000${layout.mockup_image_url}`
+                    }
+                    download={`mockup_${layout.name}.png`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary !py-1 !px-2.5 text-[10px] flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {guidelines ? (
         <div className="space-y-3">

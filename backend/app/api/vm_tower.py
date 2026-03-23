@@ -145,6 +145,43 @@ def update_intent(
     return intent
 
 
+@router.delete("/intents/{intent_id}")
+def delete_intent(
+    intent_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete a design intent and all associated data (layouts, products, concept lock, guidelines, shoot plan)."""
+    from app.models.vm_tower import (
+        DesignIntent, VMLayout, ProductRange, ConceptLock,
+        VMGuideline, ShootPlan, LayoutVersion, BuyerEdit,
+    )
+
+    intent = db.query(DesignIntent).filter(
+        DesignIntent.id == intent_id,
+        DesignIntent.user_id == user.id,
+    ).first()
+    if not intent:
+        raise HTTPException(status_code=404, detail="Design intent not found")
+
+    # Delete layout versions first (child of VMLayout)
+    layout_ids = [l.id for l in db.query(VMLayout.id).filter(VMLayout.intent_id == intent_id).all()]
+    if layout_ids:
+        db.query(LayoutVersion).filter(LayoutVersion.layout_id.in_(layout_ids)).delete(synchronize_session=False)
+        db.query(BuyerEdit).filter(BuyerEdit.layout_id.in_(layout_ids)).delete(synchronize_session=False)
+
+    # Delete all intent-scoped records
+    db.query(VMLayout).filter(VMLayout.intent_id == intent_id).delete(synchronize_session=False)
+    db.query(ProductRange).filter(ProductRange.intent_id == intent_id).delete(synchronize_session=False)
+    db.query(ConceptLock).filter(ConceptLock.intent_id == intent_id).delete(synchronize_session=False)
+    db.query(VMGuideline).filter(VMGuideline.intent_id == intent_id).delete(synchronize_session=False)
+    db.query(ShootPlan).filter(ShootPlan.intent_id == intent_id).delete(synchronize_session=False)
+
+    db.delete(intent)
+    db.commit()
+    return {"status": "deleted", "intent_id": intent_id}
+
+
 @router.patch("/intents/{intent_id}/status", response_model=DesignIntentResponse)
 def update_status(
     intent_id: int,
@@ -224,6 +261,85 @@ def list_products(
     ).all()
 
 
+@router.post("/intents/{intent_id}/products/detect-and-create", response_model=ProductRangeResponse)
+def detect_and_create_product(
+    intent_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Upload a single product image, auto-detect its details via Gemini Vision, and create a ProductRange record."""
+    from app.models.vm_tower import DesignIntent
+    from app.core.gemini_client import gemini_vision_json
+    from pathlib import Path
+    from app.core.config import settings
+    import uuid, json as _json
+
+    intent = db.query(DesignIntent).filter(
+        DesignIntent.id == intent_id, DesignIntent.user_id == user.id
+    ).first()
+    if not intent:
+        raise HTTPException(status_code=404, detail="Intent not found")
+
+    img_bytes = image.file.read()
+    ext = Path(image.filename or "img.jpg").suffix.lower() or ".jpg"
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            "png": "image/png", ".png": "image/png", "webp": "image/webp", ".webp": "image/webp"}.get(ext, "image/jpeg")
+
+    # Save image
+    filename = f"product_{uuid.uuid4().hex}{ext}"
+    upload_dir = Path(settings.UPLOAD_DIR) / "vm_products"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filepath = upload_dir / filename
+    filepath.write_bytes(img_bytes)
+    image_url = f"/uploads/vm_products/{filename}"
+
+    # Detect product details from image
+    detect_prompt = """Analyze this fashion product image. Identify the garment and return a JSON object with:
+- sku: a short unique SKU code based on the product (e.g. "WLS-001", "NBT-002")
+- name: exact descriptive product name (e.g. "White Linen Shirt", "Navy Blue Trousers")
+- category: one of Tops / Bottoms / Dresses / Outerwear / Knitwear / Denim / Activewear / Footwear / Bags / Accessories / Innerwear / Ethnicwear
+- color: primary color(s) visible
+- fabric: fabric type if identifiable, else empty string
+Return ONLY a valid JSON object. No explanatory text."""
+
+    existing_count = db.query(ProductRange).filter(ProductRange.intent_id == intent_id).count()
+    name = "Product"
+    sku = f"SKU-{existing_count + 1:03d}"
+    category = ""
+    color = ""
+    fabric = ""
+
+    try:
+        raw = gemini_vision_json(prompt=detect_prompt, image_bytes=img_bytes, mime_type=mime, temperature=0.2)
+        g = _json.loads(raw)
+        if isinstance(g, list) and g:
+            g = g[0]
+        if isinstance(g, dict):
+            name = g.get("name") or name
+            sku = g.get("sku") or sku
+            category = g.get("category") or ""
+            color = g.get("color") or ""
+            fabric = g.get("fabric") or ""
+    except Exception as e:
+        print(f"Product detection failed: {e}")
+
+    product = ProductRange(
+        intent_id=intent_id,
+        user_id=user.id,
+        sku=sku,
+        name=name,
+        category=category,
+        color=color,
+        fabric=fabric,
+        image_url=image_url,
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
+
+
 @router.post("/intents/{intent_id}/products/{product_id}/upload-image", response_model=ProductRangeResponse)
 def upload_product_image(
     intent_id: int,
@@ -267,8 +383,13 @@ def upload_range_image(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Upload a full range/combo image showing multiple products together."""
+    """Upload a range/combo image and immediately auto-extract products from it."""
     from app.models.vm_tower import DesignIntent
+    from app.core.gemini_client import gemini_vision_json
+    from pathlib import Path
+    from app.core.config import settings
+    import uuid, json as _json
+
     intent = db.query(DesignIntent).filter(
         DesignIntent.id == intent_id,
         DesignIntent.user_id == user.id,
@@ -276,33 +397,86 @@ def upload_range_image(
     if not intent:
         raise HTTPException(status_code=404, detail="Design intent not found")
 
-    import uuid
-    from pathlib import Path
-    from app.core.config import settings
-
-    ext = Path(image.filename or "img.jpg").suffix.lower() or ".jpg"
+    # Save image to disk — read bytes first so we can reuse for extraction
+    img_bytes = image.file.read()
+    ext = (image.filename or "img.jpg").rsplit(".", 1)[-1].lower()
+    ext = f".{ext}" if not ext.startswith(".") else ext
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
     filename = f"range_{uuid.uuid4().hex}{ext}"
     upload_dir = Path(settings.UPLOAD_DIR) / "vm_ranges"
     upload_dir.mkdir(parents=True, exist_ok=True)
     filepath = upload_dir / filename
-    with open(filepath, "wb") as f:
-        f.write(image.file.read())
+    filepath.write_bytes(img_bytes)
 
     image_url = f"/uploads/vm_ranges/{filename}"
 
-    # Store range images in intent attributes
+    # Store range image reference in intent
     range_images = intent.key_piece_priority or []
-    # Append range image entry (distinct from key pieces by having "type": "range_image")
-    range_images.append({
-        "type": "range_image",
-        "label": label,
-        "image_url": image_url,
-    })
+    range_images.append({"type": "range_image", "label": label, "image_url": image_url})
     intent.key_piece_priority = range_images
     db.commit()
-    db.refresh(intent)
 
-    return {"image_url": image_url, "label": label, "intent_id": intent_id}
+    # Auto-extract products from this image using Gemini Vision
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext.lstrip("."), "image/jpeg")
+    extract_prompt = """Analyze this fashion range/collection image. Identify each distinct garment or product visible.
+For each garment, return a JSON array with these fields:
+- sku: short unique SKU like "SKU-001", incrementing for each garment
+- name: exact descriptive product name (e.g. "White Linen Shirt", "Navy Wide-Leg Trousers")
+- category: one of Tops / Bottoms / Dresses / Outerwear / Knitwear / Denim / Activewear / Footwear / Bags / Accessories / Innerwear / Ethnicwear
+- color: primary color as seen in the image
+- fabric: fabric type if visible, else empty string
+
+Return ONLY a valid JSON array. No explanatory text."""
+
+    extracted_products = []
+    try:
+        raw = gemini_vision_json(prompt=extract_prompt, image_bytes=img_bytes, mime_type=mime, temperature=0.2)
+        garments = _json.loads(raw)
+        if isinstance(garments, dict):
+            garments = garments.get("products", garments.get("garments", []))
+
+        # Get existing product count to avoid SKU collisions
+        existing_count = db.query(ProductRange).filter(ProductRange.intent_id == intent_id).count()
+        seen_names: set[str] = set()
+
+        for i, g in enumerate(garments or []):
+            if not isinstance(g, dict):
+                continue
+            name = (g.get("name") or "").strip()
+            if not name or name in seen_names:
+                continue
+            seen_names.add(name)
+            product = ProductRange(
+                intent_id=intent_id,
+                user_id=user.id,
+                sku=g.get("sku") or f"SKU-{existing_count + i + 1:03d}",
+                name=name,
+                category=g.get("category") or "",
+                color=g.get("color") or "",
+                fabric=g.get("fabric") or "",
+                image_url=image_url,
+            )
+            db.add(product)
+            extracted_products.append(product)
+
+        db.commit()
+        for p in extracted_products:
+            db.refresh(p)
+    except Exception as e:
+        print(f"Auto-extract products failed: {e}")
+        # Don't fail the upload — just return without extracted products
+
+    db.refresh(intent)
+    return {
+        "image_url": image_url,
+        "label": label,
+        "intent_id": intent_id,
+        "extracted_products": [
+            {"id": p.id, "sku": p.sku, "name": p.name, "category": p.category, "color": p.color}
+            for p in extracted_products
+        ],
+    }
 
 
 @router.get("/intents/{intent_id}/range-images")
@@ -323,6 +497,99 @@ def list_range_images(
     items = intent.key_piece_priority or []
     range_images = [item for item in items if isinstance(item, dict) and item.get("type") == "range_image"]
     return range_images
+
+
+@router.post("/intents/{intent_id}/range-image/extract-products", response_model=list[ProductRangeResponse])
+def extract_products_from_range(
+    intent_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Use Gemini Vision to detect individual garments from uploaded range images and create ProductRange records."""
+    from app.models.vm_tower import DesignIntent
+    from app.core.gemini_client import gemini_vision_json
+    from pathlib import Path
+    from app.core.config import settings
+    import json as _json
+
+    intent = db.query(DesignIntent).filter(
+        DesignIntent.id == intent_id,
+        DesignIntent.user_id == user.id,
+    ).first()
+    if not intent:
+        raise HTTPException(status_code=404, detail="Design intent not found")
+
+    range_items = [
+        item for item in (intent.key_piece_priority or [])
+        if isinstance(item, dict) and item.get("type") == "range_image"
+    ]
+    if not range_items:
+        raise HTTPException(status_code=400, detail="No range images uploaded for this intent")
+
+    prompt = """Analyze this fashion range/collection image. Identify each distinct garment or product visible.
+For each garment, return a JSON array of objects with these fields:
+- sku: generate a short SKU like "SKU-001", "SKU-002" etc.
+- name: descriptive product name (e.g. "White Linen Shirt", "Navy Wide-Leg Trousers")
+- category: garment category (Tops / Bottoms / Dresses / Outerwear / Knitwear / Denim / Activewear / Footwear / Bags / Accessories / Innerwear / Ethnicwear)
+- color: primary color(s) as comma-separated string
+- fabric: fabric type if identifiable, else empty string
+
+Return only the JSON array, no extra text. Example:
+[{"sku":"SKU-001","name":"White Linen Shirt","category":"Tops","color":"white","fabric":"linen"}]"""
+
+    created = []
+    seen_names: set[str] = set()
+
+    for idx, item in enumerate(range_items):
+        rel_url = item.get("image_url", "")
+        if not rel_url:
+            continue
+        try:
+            clean = rel_url.lstrip("/")
+            abs_path = Path(clean)
+            if not abs_path.exists():
+                abs_path = Path(settings.UPLOAD_DIR).parent / clean
+            img_bytes = abs_path.read_bytes()
+            ext = abs_path.suffix.lower()
+            mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(ext, "image/jpeg")
+        except Exception:
+            continue
+
+        try:
+            raw = gemini_vision_json(prompt=prompt, image_bytes=img_bytes, mime_type=mime, temperature=0.3)
+            garments = _json.loads(raw)
+            if isinstance(garments, dict):
+                garments = garments.get("products", garments.get("garments", []))
+        except Exception:
+            continue
+
+        for i, g in enumerate(garments or []):
+            if not isinstance(g, dict):
+                continue
+            name = g.get("name", f"Product {idx * 20 + i + 1}")
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+            product = ProductRange(
+                intent_id=intent_id,
+                user_id=user.id,
+                sku=g.get("sku") or f"SKU-{len(created) + 1:03d}",
+                name=name,
+                category=g.get("category") or "",
+                color=g.get("color") or "",
+                fabric=g.get("fabric") or "",
+                image_url=rel_url,  # point back to the range image as a placeholder
+            )
+            db.add(product)
+            created.append(product)
+
+    if not created:
+        raise HTTPException(status_code=422, detail="Could not extract any products from the range images")
+
+    db.commit()
+    for p in created:
+        db.refresh(p)
+    return created
 
 
 @router.delete("/intents/{intent_id}/products/{product_id}")

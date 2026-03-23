@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import {
   FlaskConical,
   Layout,
-  Palette,
   Camera,
   Plus,
   ChevronDown,
@@ -23,9 +22,6 @@ const ResearchPanel = dynamic(() => import("./components/ResearchPanel"), {
 const MoodboardCanvas = dynamic(() => import("./components/MoodboardCanvas"), {
   loading: () => <PanelSkeleton />,
   ssr: false,
-});
-const ColorStudio = dynamic(() => import("./components/ColorStudio"), {
-  loading: () => <PanelSkeleton />,
 });
 const PhotoStudio = dynamic(() => import("./components/PhotoStudio"), {
   loading: () => <PanelSkeleton />,
@@ -61,13 +57,6 @@ const SECTIONS: {
     icon: Layout,
     accent: "#a78bfa",
     description: "Canvas-based design board",
-  },
-  {
-    id: "color-studio",
-    label: "Color Studio",
-    icon: Palette,
-    accent: "#f472b6",
-    description: "Palette creation & management",
   },
   {
     id: "photo-studio",
@@ -232,7 +221,6 @@ export default function ArtifaxPage() {
             >
               {activeSection === "research" && <ResearchPanel />}
               {activeSection === "moodboard" && <MoodboardCanvas />}
-              {activeSection === "color-studio" && <ColorStudio />}
               {activeSection === "photo-studio" && <PhotoStudio />}
             </motion.div>
           </AnimatePresence>

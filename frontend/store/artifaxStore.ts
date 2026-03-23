@@ -4,7 +4,6 @@ import { persist } from "zustand/middleware";
 export type ArtifaxSection =
   | "research"
   | "moodboard"
-  | "color-studio"
   | "photo-studio";
 
 export interface CanvasItem {

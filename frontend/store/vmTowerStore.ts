@@ -144,6 +144,7 @@ interface VMTowerStore {
   setIntents: (intents: DesignIntent[]) => void;
   addIntent: (intent: DesignIntent) => void;
   updateIntent: (intent: DesignIntent) => void;
+  removeIntent: (intentId: number) => void;
 
   // Products
   products: Product[];
@@ -191,6 +192,11 @@ export const useVMTowerStore = create<VMTowerStore>()(
       updateIntent: (intent) =>
         set((s) => ({
           intents: s.intents.map((i) => (i.id === intent.id ? intent : i)),
+        })),
+      removeIntent: (intentId) =>
+        set((s) => ({
+          intents: s.intents.filter((i) => i.id !== intentId),
+          activeIntentId: s.activeIntentId === intentId ? null : s.activeIntentId,
         })),
 
       products: [],

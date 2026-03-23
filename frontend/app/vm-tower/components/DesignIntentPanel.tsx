@@ -21,6 +21,7 @@ import {
   Info,
 } from "lucide-react";
 import { useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import api from "@/lib/api";
 import { useVMTowerStore, DesignIntent } from "@/store/vmTowerStore";
 
@@ -37,11 +38,14 @@ export default function DesignIntentPanel() {
     setActiveIntentId,
     setActivePanel,
     updateIntent,
+    removeIntent,
   } = useVMTowerStore();
 
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingIntents, setLoadingIntents] = useState(false);
+  const [deletingIntentId, setDeletingIntentId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [rangePreview, setRangePreview] = useState<string | null>(null);
   const rangeUploadRef = useRef<HTMLInputElement>(null);
@@ -72,6 +76,19 @@ export default function DesignIntentPanel() {
       // silent
     } finally {
       setLoadingIntents(false);
+    }
+  };
+
+  const handleDeleteIntent = async (intentId: number) => {
+    setDeletingIntentId(intentId);
+    try {
+      await api.delete(`/api/vm-tower/intents/${intentId}`);
+      removeIntent(intentId);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingIntentId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -298,34 +315,62 @@ export default function DesignIntentPanel() {
                 </p>
               )}
 
-              {activeIntentId === intent.id && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-3 pt-3 border-t border-white/5 flex gap-2"
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActivePanel("layout-canvas");
-                    }}
-                    className="text-[11px] px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 transition-colors flex items-center gap-1"
-                  >
-                    <Layers className="w-3 h-3" />
-                    Generate Layouts
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActivePanel("vm-output");
-                    }}
-                    className="text-[11px] px-3 py-1.5 rounded-lg bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600/30 transition-colors flex items-center gap-1"
-                  >
-                    <FileText className="w-3 h-3" />
-                    VM Output
-                  </button>
-                </motion.div>
-              )}
+              <div
+                className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {activeIntentId === intent.id && (
+                  <>
+                    <button
+                      onClick={() => setActivePanel("layout-canvas")}
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 transition-colors flex items-center gap-1"
+                    >
+                      <Layers className="w-3 h-3" />
+                      Generate Layouts
+                    </button>
+                    <button
+                      onClick={() => setActivePanel("vm-output")}
+                      className="text-[11px] px-3 py-1.5 rounded-lg bg-cyan-600/20 text-cyan-300 hover:bg-cyan-600/30 transition-colors flex items-center gap-1"
+                    >
+                      <FileText className="w-3 h-3" />
+                      VM Output
+                    </button>
+                  </>
+                )}
+                <div className="ml-auto">
+                  {confirmDeleteId === intent.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-red-400">Delete all data?</span>
+                      <button
+                        onClick={() => handleDeleteIntent(intent.id)}
+                        disabled={deletingIntentId === intent.id}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors flex items-center gap-1"
+                      >
+                        {deletingIntentId === intent.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Check className="w-3 h-3" />
+                        )}
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(intent.id)}
+                      className="text-[10px] px-2 py-1 rounded-lg text-gray-600 hover:bg-red-500/10 hover:text-red-400 transition-colors flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -440,9 +485,9 @@ export default function DesignIntentPanel() {
                     AI Context Summary
                   </label>
                   <div className="mt-1 p-3 bg-gradient-to-br from-purple-900/10 to-pink-900/10 border border-purple-500/10 rounded-lg">
-                    <p className="text-sm text-gray-300 leading-relaxed">
-                      {activeIntent.ai_context_summary}
-                    </p>
+                    <div className="text-sm leading-snug [&>*]:mb-1 [&>*:last-child]:mb-0 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-gray-100 [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:text-gray-200 [&_h3]:text-xs [&_h3]:font-medium [&_h3]:text-gray-200 [&_p]:text-xs [&_p]:text-gray-300 [&_ul]:list-disc [&_ul]:ml-3 [&_ol]:list-decimal [&_ol]:ml-3 [&_li]:text-xs [&_li]:text-gray-300 [&_strong]:font-semibold [&_strong]:text-gray-200">
+                      <ReactMarkdown>{activeIntent.ai_context_summary}</ReactMarkdown>
+                    </div>
                   </div>
                 </div>
               )}

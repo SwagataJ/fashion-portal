@@ -46,7 +46,6 @@ The end-to-end design workspace that takes a brief and produces presentation-rea
 | **Research** | AI scans seasonal trends, runway data, regional signals, and competitor positioning in 30 seconds. Returns structured insights with actionable direction. |
 | **Moodboard Canvas** | Drag-and-drop visual collage builder. Upload inspiration images, place them on a Konva canvas, add text overlays. Replaces Pinterest + Figma + folder chaos. |
 | **Moodboard AI** | Generate atmospheric editorial imagery directly from the canvas. The AI reads the images already on your board — matching colour palette, mood, and texture — and generates 2 new coherent images (wide editorial + macro detail). Theme, mood, and colour story are optional overrides. |
-| **Color Studio** | Generate AI palettes from season/mood, or extract colors directly from uploaded images. Returns hex codes and Pantone-ready values. |
 | **Concept Visualisation** | Generates 2 distinct AI concept variations from a single brief. High-fidelity renders ready for internal presentations. Powered by Gemini + Vertex AI. |
 
 ---
@@ -93,12 +92,21 @@ Design Intent → AI Layout Gen → Products & Fixtures → Concept Lock → Buy
 | Panel | Description |
 |-------|-------------|
 | **Design Intent** | Define theme, season, color flow, category mix, styling rules, store type, and visual mood. Upload a range image — AI auto-detects all parameters. |
-| **AI Layout Generation** | AI generates 4 layout suggestions (wall story, fixture plan, mannequin grouping, focal display) constrained to your design intent. |
-| **Products & Fixtures** | Upload SKUs with images. AI auto-groups into range stories. Add fixture specs (gondolas, wall units, mannequins). Batch upload supported. |
+| **AI Layout Generation** | AI generates 4 layout suggestions (wall story, fixture plan, mannequin grouping, focal display) constrained to your design intent. When a range image is uploaded, it is sent as visual context so layouts reflect the actual collection's colours and styling — not generic defaults. |
+| **Products & Fixtures** | Upload SKUs with images. AI auto-detects product name, category, colour, and fabric from each image. Add fixture specs (gondolas, wall units, mannequins). Batch upload supported. |
 | **Concept Lock** | Lock approved layouts with enforced rules: color continuity, focal hierarchy, category balance, placement constraints. Three levels: Strict / Moderate / Flexible. |
 | **Buyer Flex** | Buyers make controlled edits within approved flexibility rules. Every change is validated against the concept lock in real time. |
 | **VM Output** | Export finalized merchandising specs, VM guidelines, floor plans, and product-placement maps — ready for store teams. |
 | **Shoot Plan** | Auto-generates a photography brief mapping each product to its fixture and scene. Feeds directly into Scene Builder and Model Studio. |
+
+**Range-Faithful Mockup Generation:**
+
+When generating VM mockups, the AI receives:
+1. The uploaded range image(s) as visual reference
+2. Individual product images for every SKU in the collection (auto-included — no manual selection required)
+3. A structured product list with exact name, colour, category, and fabric per SKU
+
+This three-layer input ensures the generated mockup faithfully reproduces the actual garments from the range — matching their precise colours, patterns, and silhouettes — rather than producing a generic retail display.
 
 **Workflow States:**
 ```
@@ -548,8 +556,6 @@ fashion-portal/
 | POST | `/api/artifax/research/competitor` | Competitor analysis |
 | POST | `/api/artifax/research/runway` | Runway analysis |
 | POST | `/api/artifax/concept/generate` | Generate concept images |
-| POST | `/api/artifax/concept/color` | Generate color palette |
-| POST | `/api/artifax/concept/extract-colors` | Extract colors from image |
 | POST | `/api/artifax/moodboard/generate` | Generate moodboard imagery from canvas images |
 | POST | `/api/artifax/visualization/generate` | Product visualization |
 

@@ -83,9 +83,13 @@ export default function LayoutCanvas() {
   const [selectedProductForImage, setSelectedProductForImage] = useState<number | null>(null);
   const [rangeImages, setRangeImages] = useState<RangeImage[]>([]);
   const [rangeLabel, setRangeLabel] = useState("full_range");
+  const [extractingProducts, setExtractingProducts] = useState(false);
+  const [extractMessage, setExtractMessage] = useState("");
+  const [detectingProduct, setDetectingProduct] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rangeFileInputRef = useRef<HTMLInputElement>(null);
   const fixtureFileInputRef = useRef<HTMLInputElement>(null);
+  const detectFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fixture state
   const [showFixtures, setShowFixtures] = useState(false);
@@ -236,10 +240,32 @@ export default function LayoutCanvas() {
     }
   };
 
-  // Upload range/combo image
+  // Upload a single product image — auto-detects name/SKU/category and creates the product
+  const handleDetectAndCreateProduct = async (file: File) => {
+    if (!activeIntentId) return;
+    setDetectingProduct(true);
+    setExtractMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await api.post(
+        `/api/vm-tower/intents/${activeIntentId}/products/detect-and-create`,
+        formData
+      );
+      addProducts([res.data]);
+      setExtractMessage(`Product "${res.data.name}" auto-detected and added`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDetectingProduct(false);
+    }
+  };
+
+  // Upload range/combo image — auto-extracts products on upload
   const handleRangeImageUpload = async (file: File) => {
     if (!activeIntentId) return;
     setUploadingImage(true);
+    setExtractMessage("");
     try {
       const formData = new FormData();
       formData.append("image", file);
@@ -248,12 +274,34 @@ export default function LayoutCanvas() {
         `/api/vm-tower/intents/${activeIntentId}/range-image`,
         formData
       );
-      setRangeImages([...rangeImages, res.data]);
+      setRangeImages([...rangeImages, { image_url: res.data.image_url, label: res.data.label }]);
       setRangeLabel("full_range");
+      const extracted = res.data.extracted_products || [];
+      if (extracted.length > 0) {
+        addProducts(extracted);
+        setExtractMessage(`${extracted.length} products auto-extracted from range`);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleExtractProducts = async () => {
+    if (!activeIntentId) return;
+    setExtractingProducts(true);
+    setExtractMessage("");
+    try {
+      const res = await api.post(
+        `/api/vm-tower/intents/${activeIntentId}/range-image/extract-products`
+      );
+      addProducts(res.data);
+      setExtractMessage(`${res.data.length} products extracted from range image`);
+    } catch (err: any) {
+      setExtractMessage(err?.response?.data?.detail || "Extraction failed");
+    } finally {
+      setExtractingProducts(false);
     }
   };
 
@@ -486,14 +534,47 @@ export default function LayoutCanvas() {
               {imageUploadMode === "single" && (
                 <div>
                   <p className="text-xs t-muted mb-3">
-                    Upload individual product images. Select a product below and attach its image.
+                    Drop a product image below to auto-detect and add it, or select an existing product to replace its image.
                   </p>
-                  {products.length === 0 ? (
-                    <div className="text-center py-6 border border-dashed border-[var(--border-color)] rounded-xl">
-                      <Package className="w-8 h-8 t-disabled mx-auto mb-2" />
-                      <p className="text-xs t-muted">Add products first to upload their images</p>
+
+                  {/* Auto-detect drop zone */}
+                  <div
+                    onClick={() => detectFileInputRef.current?.click()}
+                    className="flex items-center gap-3 p-3 mb-4 rounded-xl border border-dashed border-[var(--accent-purple-border)] bg-[var(--accent-purple-bg)] cursor-pointer hover:border-purple-400 transition-colors"
+                  >
+                    {detectingProduct ? (
+                      <Loader2 className="w-5 h-5 text-purple-400 animate-spin flex-shrink-0" />
+                    ) : (
+                      <Sparkles className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="text-xs font-medium text-purple-400">
+                        {detectingProduct ? "Detecting product from image..." : "Upload image → AI auto-detect product"}
+                      </p>
+                      <p className="text-[10px] t-muted">
+                        AI will extract name, SKU, category, color and add it to your product list
+                      </p>
                     </div>
-                  ) : (
+                  </div>
+                  <input
+                    ref={detectFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleDetectAndCreateProduct(file);
+                      e.target.value = "";
+                    }}
+                  />
+
+                  {extractMessage && imageUploadMode === "single" && (
+                    <p className="text-[11px] text-green-400 mb-3 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> {extractMessage}
+                    </p>
+                  )}
+
+                  {products.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {products.map((p) => (
                         <div
@@ -593,12 +674,16 @@ export default function LayoutCanvas() {
                       className="btn-gradient px-4 py-2 text-sm flex items-center gap-2"
                     >
                       {uploadingImage ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Uploading &amp; Extracting...</>
                       ) : (
-                        <Upload className="w-4 h-4" />
+                        <><Upload className="w-4 h-4" /> Upload &amp; Extract Products</>
                       )}
-                      Upload Range Image
                     </button>
+                    {extractMessage && (
+                      <span className={`text-xs ${extractMessage.includes("extracted") ? "text-green-400" : "text-amber-400"}`}>
+                        {extractMessage}
+                      </span>
+                    )}
                   </div>
 
                   <input
@@ -615,33 +700,38 @@ export default function LayoutCanvas() {
 
                   {/* Range Images Grid */}
                   {rangeImages.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {rangeImages.map((img, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="rounded-xl border border-[var(--border-color)] overflow-hidden group"
-                        >
-                          <div className="aspect-[4/3] bg-[var(--bg-surface-2)]">
-                            <img
-                              src={
-                                img.image_url.startsWith("http")
-                                  ? img.image_url
-                                  : `http://localhost:8000${img.image_url}`
-                              }
-                              alt={img.label}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="p-2 bg-[var(--card-bg)]">
-                            <span className="text-[10px] font-medium t-secondary capitalize">
-                              {img.label.replace("_", " ")}
-                            </span>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {rangeImages.map((img, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="rounded-xl border border-[var(--border-color)] overflow-hidden group"
+                          >
+                            <div className="aspect-[4/3] bg-[var(--bg-surface-2)]">
+                              <img
+                                src={
+                                  img.image_url.startsWith("http")
+                                    ? img.image_url
+                                    : `http://localhost:8000${img.image_url}`
+                                }
+                                alt={img.label}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="p-2 bg-[var(--card-bg)]">
+                              <span className="text-[10px] font-medium t-secondary capitalize">
+                                {img.label.replace("_", " ")}
+                              </span>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] t-muted mt-3">
+                        Products are auto-extracted from range images on upload. Use the button above to re-extract if needed.
+                      </p>
+                    </>
                   ) : (
                     <div className="text-center py-8 border border-dashed border-[var(--border-color)] rounded-xl">
                       <GalleryHorizontalEnd className="w-8 h-8 t-disabled mx-auto mb-2" />
