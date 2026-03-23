@@ -108,16 +108,18 @@ Intent Defined → AI Layout Suggested → Designer Approved → Concept Locked 
 ---
 
 ### 4. Photogenix — AI Product Photography Engine
-**For:** Buyers, E-commerce Managers, Merchandisers
+**For:** Buyers, E-commerce Managers, Merchandisers, Photographers
 
-Transforms raw product images into studio-quality e-commerce photography — no photographer, no studio, no retoucher.
+Transforms raw product images into studio-quality photography — no photographer, no studio, no retoucher. Two distinct generation modes in one unified interface.
+
+---
+
+#### 4a. Product Photo — Ghost Mannequin & Flat Lay
 
 **Two-step AI pipeline:**
 
 1. **Vision Analysis** — Gemini analyses the uploaded image: garment type, silhouette, colors, fabric texture, cut, patterns, embellishments, hardware, and style aesthetic.
 2. **Image Generation** — Using the description + user preferences, Vertex AI renders a new studio-quality image.
-
-**Available options:**
 
 | Option | Choices |
 |--------|---------|
@@ -125,10 +127,48 @@ Transforms raw product images into studio-quality e-commerce photography — no 
 | Shooting Styles | Studio · Lifestyle · Editorial · E-commerce |
 
 - 20 total combinations (5 backgrounds × 4 styles)
-- Only the most prominent garment is featured
-- Ghost mannequin or flat lay presentation
+- Only the most prominent garment is featured — ghost mannequin or flat lay
 - No logos, no people, no mannequins in output
-- ~98% time saved vs. traditional photo shoot
+- ~98% time saved vs. traditional product shoot
+
+---
+
+#### 4b. On-Model Visualisation — Dress an AI Model
+
+Upload a garment and generate a full editorial photograph of an AI model wearing it, inside an AI-generated scene.
+
+**Model Studio parameters:**
+
+| Parameter | Options |
+|-----------|---------|
+| Gender | Male · Female · Non-binary |
+| Age Range | 18–24 · 25–30 · 31–40 · 40+ |
+| Ethnicity | South Asian · East Asian · Black · White · Hispanic · Middle Eastern · Diverse |
+| Body Type | Slim · Athletic · Curvy · Plus-size |
+| Pose | Standing · Walking · Seated · Editorial · Dynamic |
+| Expression | Natural · Smiling · Serious · Confident · Candid |
+| Shoot Mood | Editorial · E-commerce · Lifestyle · Street · Luxury |
+
+**Scene Builder parameters:**
+
+| Control | Options |
+|---------|---------|
+| Environment | Studio · Outdoor · Urban Street · Luxury Interior · Runway · Beach · Cafe · Rooftop · Boutique · Desert · Editorial |
+| Lighting | Softbox · Natural Daylight · Warm Golden · Dramatic · High-Fashion · Moody |
+| Camera Angle | Full Body · Close-up · Editorial Crop · E-commerce · 3/4 Angle |
+| Warmth | Slider (cool → warm tones) |
+| Custom Scene | Free-text override for fully custom environments |
+
+**Three-step AI pipeline:**
+1. Gemini vision describes the garment in precise detail
+2. Model + scene descriptors are combined into a structured editorial prompt
+3. Product image is passed as visual reference; Vertex AI generates the model photograph
+
+- Garment is faithfully rendered on the model — not composited, truly generated
+- 700+ unique model configurations
+- 360+ scene combinations
+- Magazine-quality 4K output, no watermarks
+- ~1–2 minutes per generation
 
 ---
 
