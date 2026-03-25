@@ -12,7 +12,7 @@ Fashion teams operate in silos:
 
 | Team | The Problem |
 |------|-------------|
-| **Designer** | Trend research takes 2–3 days. Concepts get lost in translation. Color choices are gut-feel. |
+| **Designer** | Trend research takes 2–3 days. Concepts get lost in translation. CAD specs are drawn manually and take hours per style. |
 | **Buyer** | Waits weeks for product photography and catalog copy. No visibility into design rationale. |
 | **Merchandiser** | VM layouts planned in Excel with no visual preview. Design intent never reaches the store. |
 | **Marketing** | Campaigns take 2–3 weeks via agencies. Photo shoots cost ₹50K–₹5L per session. |
